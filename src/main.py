@@ -1,6 +1,5 @@
-from preferences import load_pref, set_pref
+from preferences import load_pref
 from cmd_utils import commands
-pk = "vprv9QLAqrfm5tDgJKT6UzBMx1xAmBSeCW7mV6FtpHhisB6aiQ42tNH29DkT1r4cYKc72GDXTWtZN9rrMPQN3j4y7LPt4CJkj1Uhcn1EeUbmJrf"
 # Main function
 def main():
     # Entry point
@@ -8,13 +7,11 @@ def main():
     print("Starting Keystone Wallet...")
 
     # Preferences
-    print("Loading preferences file...")
+    print("Loading preferences...")
     load_pref()
-    print("Setting preferences...")
-    set_pref()
 
+    # Main loop, waits for commands on console
     print("\nWelcome to KeyStone Wallet's console.\nType help for more information on commands.")
-    # Waits for commands on console
     while True:
         cmd = input("(KEYSTONE)> ")
         parts = cmd.split(maxsplit=1)
@@ -25,4 +22,5 @@ def main():
             commands[command](args)
         else:
             print(f"Unknown command: {command}. Type 'help' for a list of commands.")
+# Execution
 main()
