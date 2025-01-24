@@ -39,7 +39,7 @@ def open_wallet_creation():
     password_label.pack(pady=(10, 5), padx=10, anchor="w")
     password_entry = ctk.CTkEntry(master_wallet_window, width=300, show="*")
     password_entry.pack(pady=(0, 10), padx=10)
-
+    
     # Development note
     dev_note_label = ctk.CTkLabel(
         master_wallet_window,

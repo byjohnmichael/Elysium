@@ -1,9 +1,7 @@
-# PACKAGES
-from gui import app
+from gui_welcome import welcome_page
 
-# MAIN FUNCTION
 def main():
     print("KeyStone Wallet. Version 0.2.0")
-    app.mainloop()
+    welcome_page()
     return
 main()

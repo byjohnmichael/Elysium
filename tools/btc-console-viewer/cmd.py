@@ -53,6 +53,7 @@ def get_balance(args):
         try:
             wallet = Wallet(wallet_name)
             wallet.scan()
+            wallet.utxos_update()
             balance_satoshis = wallet.balance()
             balance_btc = balance_satoshis / 1e8
             return balance_btc

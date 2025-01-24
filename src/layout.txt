@@ -1,0 +1,13 @@
+main
+|
+|-> gui_welcome <-- pubsub
+    |
+    |--> gui_wallet_create <-- fileman
+    |
+    |--> gui_wallet_login <-- fileman, pubsub
+    |
+    |--> gui_wallet_home <-- bitcoinlib
+         |
+         |--> gui_wallet_handler <-- fileman
+              |
+              |--> network_bitcoin <-- bitcoinlib
