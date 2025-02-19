@@ -1,0 +1,27 @@
+# Ignore virtual environments
+.venv/
+venv/
+pvenv.cfg
+
+# Ignore build and environment folders
+Include/
+Lib/
+Scripts/
+
+# Ignore key and database files
+*.key
+*.db
+
+# Ignore Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore IDE and editor settings
+*.vscode/
+*.idea/
+
+# Ignore system files
+.DS_Store
+Thumbs.db

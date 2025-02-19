@@ -2,8 +2,8 @@
 import customtkinter as ctk
 import tkinter as tk
 from tkinter import *
-from frames import *
-from auth import authenticate as auth
+# from frames import *
+# from auth import authenticate as auth
 from core.bitcoin import *
 import time
 import random
