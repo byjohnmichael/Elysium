@@ -1,31 +1,30 @@
 # BLOCKCHAIN PACKAGES
-from bitcoinlib.wallets import Wallet   # BITCOIN
-from web3 import Web3                   # ETHERUEM
-from eth_account import Account         # ETHERUEM
-from stellar_sdk import Keypair         # STELLAR
-from stellar_sdk import Server          # STELLAR
+from bitcoinlib.wallets import Wallet
+from bitcoinlib.keys import Key, HDKey
+from bitcoinlib.services.services import Service
+from web3 import Web3
+from eth_account import Account
+from stellar_sdk import Keypair, Server, TransactionBuilder, Network, Asset, Account
 
 # OTHER PACKAGES
-from cryptography.fernet import Fernet  # FOR CIPHER
-from mnemonic import Mnemonic           # FOR GENERATING 12 WORD SEEDS
-import requests                         # FOR INTERNET REQUESTS
-import sqlite3                          # FOR DATABASE HANDLING
-import hashlib                          # FOR STELLAR SUPPORT
-import hmac                             # FOR STELLAR SUPPORT
+from cryptography.fernet import Fernet
+from mnemonic import Mnemonic
+import requests
+import sqlite3
+import hashlib
+import hmac
 import json
 import sys
 import os
+
+BITCOIN_NETWORK="testnet"
+ETHERUEM_NETWORK="https://sepolia.infura.io/v3/23475d24beea4c948=5db4586f06cfa7e"
+STELLAR_NETWORK="https://horizon-testnet.stellar.org"
 
 ###
 # INIT METHOD
 ###
 def init():
-    # CONNECT TO ETHERUEM
-    print("Connecting to the Etheruem network(Sepolia Testnet)")
-    sepolia_url = "https://sepolia.infura.io/v3/23475d24beea4c9485db4586f06cfa7e"
-    w3 = Web3(Web3.HTTPProvider(sepolia_url))
-    print(f"Connected to Sepolia: {w3.is_connected()}")
-
     # GENERATING THE CIPHER
     if not os.path.exists(".key"):
         print("Generating cipher")
@@ -67,7 +66,7 @@ def save(wallet_name, private_key, network):
     except Exception as e:
         print(f"Could not retrieve the cipher. {e}")
 
-    # SAVING TO DATABASEcc
+    # SAVING TO DATABASE
     try:
         conn = sqlite3.connect("wallets.db")
         cursor = conn.cursor()
@@ -118,10 +117,15 @@ def help(*_):
         "exit: Close the application\n")
 
 def mode(args, mode=None):
-    if args in {"bitcoin", "etheruem", "solana", "stellar"}:
+    if args in {"btc", "eth", "sol", "xlm"}:
         return args
-    else:
-        return None
+    blockchain_map = {
+        "bitcoin": "btc",
+        "etheruem": "eth",
+        "solana": "sol",
+        "stellar": "xlm"
+    }
+    return blockchain_map.get(args.lower(), None)
 
 def create(args, mode=None):
     if args and mode != None:
@@ -160,53 +164,65 @@ def restore(args, mode=None):
 
 def initialize(wallet_name, raw_seed, mode):
     try:
+        private_key = None
         match mode:
-            case "bitcoin":
-                wallet = Wallet.create(name=wallet_name, keys=raw_seed, network="testnet", witness_type="segwit")
-                private_key = wallet.get_key().wif
-                save(wallet_name, private_key, mode)
-            case "etheruem":
-                sepolia_url = "https://sepolia.infura.io/v3/23475d24beea4c9485db4586f06cfa7e"
-                w3 = Web3(Web3.HTTPProvider(sepolia_url))
-                eth_acc = w3.eth.account.from_key(raw_seed[:32].hex())
+            case "btc":
+                hd_key = HDKey.from_seed(raw_seed, network=BITCOIN_NETWORK, witness_type="segwit")
+                private_key = hd_key.wif()
+            case "eht":
+                server = Web3(Web3.HTTPProvider(ETHERUEM_NETWORK))
+                eth_acc = server.eth.account.from_key(raw_seed[:32].hex())
                 private_key = eth_acc.key.hex()
-                save(wallet_name, private_key, mode)
-            case "solana":
+            case "sol":
                 return
-            case "stellar":
+            case "xlm":
                 public_key = hmac.new(b"ed25519 seed", raw_seed[:32], hashlib.sha512).digest()
                 keypair = Keypair.from_raw_ed25519_seed(public_key[:32])
                 private_key = keypair.secret
-                save(wallet_name, private_key, mode)
+        save(wallet_name, private_key, mode)
     except Exception as e:
         print(f"Error: could not initialize wallet. {e}") 
 
 def send(args, mode=None):
     if args and mode != None:
-
-
-
-
-
-
-
-        # TODO SEPERATE NETWOKRS
         parts = args.split()
         if len(parts) == 3:
             wallet_name, address, amount = parts
-            try:
-                wallet = Wallet(wallet_name)
-                tx = wallet.send_to(address, amount)
-                print(f"Transaction sent! TXID: {tx.txid}")
-            except Exception as e:
-                print(f"Error: Could not send BTC. {e}")
-        else:
-            print("Error: Usage: send <name> <address> <amount>")
-
-
-
-
-
+            match case:
+                case "btc":
+                    return
+                case "eth":
+                    return
+                case "sol":
+                    return
+                case "xlm":
+                    try:
+                        server = Server(STELLAR_NETWORK)
+                        sender_private_key = load(wallet_name, mode)
+                        sender_keypair = Keypair.from_secret(sender_private_key)
+                        sender_account = server.load_account(sender_keypair.public_key)
+                        transaction = (
+                            TransactionBuilder(
+                                source_account=sender_account,
+                                network_passphrase=Network.TESTNET_NETWORK_PASSPHRASE,
+                                base_fee=100,
+                            )
+                            .append_payment_op(
+                                destination=address, 
+                                asset=Asset.native(),
+                                amount=amount
+                            )
+                            .set_timeout(30)
+                            .build()
+                        )   
+                        transaction.sign(sender_keypair)
+                    except Exception as e:
+                        print(f"Error: Could not build transaction. {e}")
+                    try:
+                        response = server.submit_transaction(transaction)
+                        print(f"Transaction successful! Hash: {response['hash']}")
+                    except Exception as e:
+                        print(f"Error: Transaction failed: {e}")
     else:
         if mode == None:
             print("Error: Network was not specified, run the 'mode' command. Usage: mode <network>")
@@ -217,17 +233,18 @@ def receive(args, mode=None):
     if args and mode != None:
         try:
             wallet_name = args
+            address = None
+            private_key = load(wallet_name, mode)
             match mode:
-                case "bitcoin":
+                case "btc":
                     return
-                case "etheruem":
+                case "eth":
                     return
-                case "solana":
-                    return
-                case "stellar":
-                    private_key = load(wallet_name, mode)
-                    keypair = Keypair.from_secret(private_key)
-                    print(f"Address: {keypair.public_key}")
+                case "sol":
+                    return "NOT IMPLEMENTED"
+                case "xlm":
+                    address = Keypair.from_secret(private_key).public_key
+            return address
         except Exception as e:
             print(f"Error: Could not retrieve address for wallet '{wallet_name}'. {e}")
     else:
@@ -240,33 +257,30 @@ def balance(args, mode=None):
     if args:
         try:
             wallet_name = args
+            balance = None
+            private_key = load(wallet_name, mode)
             match mode:
-                case "bitcoin":
-                    wallet = Wallet(wallet_name)
-                    wallet.scan()
-                    wallet.utxos_update()
-                    balance_satoshis = wallet.balance()
-                    balance_btc = balance_satoshis / 1e8
-                    print(f"Balance: BTC: {balance_btc}")
-                case "etheruem":
-                    private_key = load(wallet_name, mode)
-                    sepolia_url = "https://sepolia.infura.io/v3/23475d24beea4c9485db4586f06cfa7e"
-                    w3 = Web3(Web3.HTTPProvider(sepolia_url))
+                case "btc":
+                    key = Key(private_key, network=BITCOIN_NETWORK)
+                    service = Service(network=BITCOIN_NETWORK)
+                    utxos = service.utxos(key.address)
+                    balance_satoshis = sum(utxo['value'] for utxo in utxos)
+                    balance = balance_satoshis / 1e8
+                case "eth":
+                    server = Web3(Web3.HTTPProvider(ETHERUEM_NETWORK))
                     eth_acc = w3.eth.account.from_key(private_key)
                     balance_wei = w3.eth.get_balance(eth_acc.address)
-                    balance_eth = w3.from_wei(balance_wei, 'ether')
-                    print(f"Balance ETH: {balance_eth}")
-                case "solana":
-                    return
-                case "stellar":
-                    server = Server("https://horizon-testnet.stellar.org")
-                    private_key = load(wallet_name, mode)
+                    balance = w3.from_wei(balance_wei, 'ether')
+                case "sol":
+                    balance = "NOT IMPLEMENTED"
+                case "xlm":
+                    server = Server(STELLAR_NETWORK)
                     keypair = Keypair.from_secret(private_key)
                     account = server.accounts().account_id(keypair.public_key).call()
-                    for balance in account['balances']:
-                        print(f"Balance {balance['asset_type']}: {balance['balance']}")
+                    balance = next((b['balance'] for b in account['balances'] if b['asset_type'] == 'native'), None)
                 case _:
                     return
+            return balance
         except Exception as e:
             print(f"Error: Could not retrieve balance for wallet '{wallet_name}'. {e}")
     else:
@@ -276,7 +290,7 @@ def balance(args, mode=None):
         print("Error: Wallet name was not specified. Usage: balance <wallet_name>")
 
 def fund(args, mode=None):
-    if args and mode == "stellar":
+    if args and mode == "xlm":
         try:
             wallet_name = args
             private_key = load(wallet_name, mode)
@@ -321,7 +335,7 @@ def main():
     # Main loop, waits for commands on console
     print("Type 'help' for more information on commands. Use the mode command to choose which blockchain to operate on.")
     print("Defaulting to the stellar network")
-    mode = "stellar"
+    mode = "xlm"
     while True:
         cmd = None
         if mode != None:
@@ -332,12 +346,21 @@ def main():
         command = parts[0]
         args = parts[1] if len(parts) > 1 else None
         if command in commands:
-            if parts[0] == "mode":
-                mode = commands[command](args, mode)
-            elif parts[0] == "balance":
-                print(commands[command](args, mode))
-            else:
-                commands[command](args, mode)
+            match parts[0]:
+                case "mode":
+                    mode_buffer = commands[command](args, mode)
+                    if mode == None:
+                        print(f"{mode_buffer} does not exist as a network")
+                    else:
+                        mode = mode_buffer
+                case "balance":
+                    balance = commands[command](args, mode)
+                    print(f"Balance ({mode}): {balance}")
+                case "receive":
+                    address = commands[command](args, mode)
+                    print(f"Address: {address}")
+                case _:
+                    commands[command](args, mode)
         else:
             print(f"Unknown command: {command}. Type 'help' for a list of commands.")
 main()
